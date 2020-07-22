@@ -16,6 +16,7 @@ package ddl_test
 import (
 	"context"
 	"sync/atomic"
+	"time"
 
 	. "github.com/pingcap/check"
 	"github.com/pingcap/parser/model"
@@ -32,10 +33,10 @@ type testDDLTableSplitSuite struct{}
 var _ = Suite(&testDDLTableSplitSuite{})
 
 func (s *testDDLTableSplitSuite) TestTableSplit(c *C) {
-	store, err := mockstore.NewMockTikvStore()
+	store, err := mockstore.NewMockStore()
 	c.Assert(err, IsNil)
 	defer store.Close()
-	session.SetSchemaLease(0)
+	session.SetSchemaLease(100 * time.Millisecond)
 	session.DisableStats4Test()
 	atomic.StoreUint32(&ddl.EnableSplitTableRegion, 1)
 	dom, err := session.BootstrapSession(store)
@@ -74,7 +75,7 @@ func checkRegionStartWithTableID(c *C, id int64, store kvStore) {
 	var loc *tikv.KeyLocation
 	var err error
 	cache := store.GetRegionCache()
-	loc, err = cache.LocateKey(tikv.NewBackoffer(context.Background(), 5000), regionStartKey)
+	loc, err = cache.LocateKey(tikv.NewBackofferWithVars(context.Background(), 5000, nil), regionStartKey)
 	c.Assert(err, IsNil)
 	// Region cache may be out of date, so we need to drop this expired region and load it again.
 	cache.InvalidateCachedRegion(loc.Region)
